@@ -1,1 +1,4 @@
+gcc -Wall image_tagger.c -o image.tagger -g
+./image_tagger 172.26.37.100 7911
+172.26.37.100:7911
 1. 当sendHtmlPage 返回false时要close 连接。
