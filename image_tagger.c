@@ -31,7 +31,8 @@ static int const HTTP_400_LENGTH = 47;
 static char const * const HTTP_404 = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
 static int const HTTP_404_LENGTH = 45;
 
-#define WELCOME_PAGE "welcome.html"
+#define WELCOME_PAGE "1_intro.html"
+#define MAIN_MENU_PAGE "2_start.html"
 #define NUM_PLAYERS 2
 
 // represents the types of method
@@ -42,8 +43,9 @@ typedef enum
     UNKNOWN
 } METHOD;
 
-bool sendHtmlPage(int sockfd, char *page);
+bool sendPage(int sockfd, char *page);
 static bool handle_http_request(int sockfd);
+bool sendDynamicPage(int sockfd, char *page, char *newContent);
 
 int main(int argc, char **argv) {
     // check whether input IP and port before start
@@ -187,12 +189,16 @@ static bool handle_http_request(int sockfd)
     if (*curr == ' ')
         if (method == GET)
         {
-            if (!sendHtmlPage(sockfd, WELCOME_PAGE)) {
+            if (!sendPage(sockfd, WELCOME_PAGE)) {
                 return false;
             }
         }
         else if (method == POST)
         {
+            char * username = strstr(buff, "user=") + 5;
+            if (!sendDynamicPage(sockfd, MAIN_MENU_PAGE, username)) {
+                return false;
+            }
         }
         else
             // never used, just for completeness
@@ -207,7 +213,7 @@ static bool handle_http_request(int sockfd)
     return true;
 }
 
-bool sendHtmlPage(int sockfd, char *page) {
+bool sendPage(int sockfd, char *page) {
     struct stat st;
     int n;
     char buff[2049];
@@ -232,5 +238,47 @@ bool sendHtmlPage(int sockfd, char *page) {
         return false;
     }
     close(filefd);
+    return true;
+}
+
+bool sendDynamicPage(int sockfd, char *page, char *newContent)
+{
+    int length = strlen(newContent);
+    int n;
+    // get the size of the file
+    struct stat st;
+    char buff[2049];
+    stat(page, &st);
+    // increase file size to accommodate the username
+    long size = st.st_size + length;
+    n = sprintf(buff, HTTP_200_FORMAT, size);
+    // send the header first
+    if (write(sockfd, buff, n) < 0)
+    {
+        perror("write");
+        return false;
+    }
+    // read the content of the HTML file
+    int filefd = open(page, O_RDONLY);
+    n = read(filefd, buff, 2048);
+    if (n < 0)
+    {
+        perror("read");
+        close(filefd);
+        return false;
+    }
+    close(filefd);
+    // move the trailing part backward
+    int p1, p2;
+    for (p1 = size - 1, p2 = p1 - length; p1 >= size - 25; --p1, --p2)
+        buff[p1] = buff[p2];
+    ++p2;
+    // copy the username
+    strncpy(buff + p2, newContent, length);
+    if (write(sockfd, buff, size) < 0)
+    {
+        perror("write");
+        return false;
+    }
     return true;
 }
