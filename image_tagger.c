@@ -96,7 +96,7 @@ int main(int argc, char **argv) {
     int maxfd = sockfd;
 
     //server begins to work
-    printf("%s server is now running at IP: %s on port %s",
+    printf("%s server is now running at IP: %s on port %s\n",
         argv[0], ip, port);
 
     while (1) {
@@ -195,7 +195,9 @@ static bool handle_http_request(int sockfd)
         }
         else if (method == POST)
         {
+            printf("POST:\n%s\n\nPOST END\n\n", buff);
             char * username = strstr(buff, "user=") + 5;
+            printf("username = %s\n\n\n", username);
             if (!sendDynamicPage(sockfd, MAIN_MENU_PAGE, username)) {
                 return false;
             }
@@ -243,7 +245,16 @@ bool sendPage(int sockfd, char *page) {
 
 bool sendDynamicPage(int sockfd, char *page, char *newContent)
 {
-    int length = strlen(newContent);
+    char formatStart[] = "<h3>"; 
+    char formatEnd[] = "</h3>";
+    int sizeWithFormat = strlen(formatStart) + strlen(formatEnd) + strlen(newContent) + 1;
+    char *newContentWithFormat = (char *)calloc(sizeWithFormat, sizeof(char));
+    strcat(newContentWithFormat, formatStart);
+    strcat(newContentWithFormat, newContent);
+    strcat(newContentWithFormat, formatEnd);
+    printf("test the newContentWithFormat:\n%s\n\nEND\n\n", newContentWithFormat);
+    printf("\n");
+    int length = strlen(newContentWithFormat);
     int n;
     // get the size of the file
     struct stat st;
@@ -270,15 +281,16 @@ bool sendDynamicPage(int sockfd, char *page, char *newContent)
     close(filefd);
     // move the trailing part backward
     int p1, p2;
-    for (p1 = size - 1, p2 = p1 - length; p1 >= size - 25; --p1, --p2)
+    for (p1 = size - 1, p2 = p1 - length; p1 >= size - 214; --p1, --p2)
         buff[p1] = buff[p2];
     ++p2;
     // copy the username
-    strncpy(buff + p2, newContent, length);
+    strncpy(buff + p2, newContentWithFormat, length);
     if (write(sockfd, buff, size) < 0)
     {
         perror("write");
         return false;
     }
+    printf("\n%s\n", buff);
     return true;
 }
