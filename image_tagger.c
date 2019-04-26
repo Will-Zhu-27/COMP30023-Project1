@@ -25,7 +25,7 @@
 // constants
 static char const * const HTTP_200_FORMAT = "HTTP/1.1 200 OK\r\n\
 Content-Type: text/html\r\n\
-Content-Length: %ld\r\n\r\n";
+Content-Length: %ld\r\n";
 static char const * const HTTP_400 = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
 static int const HTTP_400_LENGTH = 47;
 static char const * const HTTP_404 = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
@@ -47,10 +47,28 @@ typedef enum
     UNKNOWN
 } METHOD;
 
+struct player {
+    int id;
+    char *username;
+    bool inGame;
+};
+
+struct record {
+	int size;
+	struct player *playerRecord;
+};
+
 bool sendPage(int sockfd, char *page);
-static bool handle_http_request(int sockfd);
+static bool handle_http_request(int sockfd, struct record **recordListPtr);
 bool sendDynamicPage(int sockfd, char *page, char *newContent);
 METHOD getMethod(char **buffPtr);
+char *createIdCookie(int lastestId);
+int getIdCookie(char *data);
+bool sendInitialPage(int sockfd, char *page, struct record **recordListPtr);
+char *createHeaderwithNewIdCookie(int lastestId);
+void freeRecord(struct record **recordListPtr);
+bool add(struct record **recordListPtr);
+void setUsername(struct record **recordListPtr, int index, char *username);
 
 int main(int argc, char **argv) {
     // check whether input IP and port before start
@@ -61,6 +79,8 @@ int main(int argc, char **argv) {
 
     char *ip = argv[1];
     char *port = argv[2];
+
+    struct record *recordList = (struct record *)malloc(sizeof(struct record));
 
     // create TCP socket which only accept IPv4
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -91,7 +111,7 @@ int main(int argc, char **argv) {
     }
 
     // listen on the socket
-    listen(sockfd, NUM_PLAYERS);
+    listen(sockfd, 5);
 
     // initialise an active file descriptors set
     fd_set masterfds;
@@ -113,7 +133,7 @@ int main(int argc, char **argv) {
         }
 
         // loop all possible descriptor
-        for (int i = 0; i <= maxfd; ++i)
+        for (int i = 0; i <= maxfd; ++i) {
             // determine if the current file descriptor is active
             if (FD_ISSET(i, &readfds)) {
                 // create new socket if there is new incoming connection request
@@ -141,17 +161,18 @@ int main(int argc, char **argv) {
                     }
                 }
                 // a request is sent from the client
-                else if (!handle_http_request(i)) {
+                else if (!handle_http_request(i, &recordList)) {
                     close(i);
                     FD_CLR(i, &masterfds);
                 }
             }
+        }
     }
+    freeRecord(&recordList);
     return 0;
 }
 
-static bool handle_http_request(int sockfd)
-{
+static bool handle_http_request(int sockfd, struct record **recordListPtr) {
     // try to read the request
     char buff[2049];
     int n = read(sockfd, buff, 2049);
@@ -168,16 +189,15 @@ static bool handle_http_request(int sockfd)
     buff[n] = 0;
 
     char * curr = buff;
-
+    
     printf("\n************print received data****************\n");
     printf("%s", curr);
     printf("\n************END****************\n\n");
-
+    
     // parse the method
     METHOD method = getMethod(&curr);
     if (method == UNKNOWN) {
-        if (write(sockfd, HTTP_400, HTTP_400_LENGTH) < 0)
-        {
+        if (write(sockfd, HTTP_400, HTTP_400_LENGTH) < 0) {
             printf("\nMETHOD UNKNOWN\n");
             perror("write");
             return false;
@@ -187,13 +207,20 @@ static bool handle_http_request(int sockfd)
     printf("\n\nGet method = %d \n\n", method);
 
     // sanitise the URI
-    while (*curr == '.' || *curr == '/')
+    while (*curr == '.' || *curr == '/') {
         ++curr;
+    }
+        
     // assume the only valid request URI is "/" but it can be modified to accept more files
 
     if (method == GET) {
-        if (!sendPage(sockfd, WELCOME_PAGE)) {
-            return false;
+        if (getIdCookie(curr) == -1) {
+            if (!sendInitialPage(sockfd, WELCOME_PAGE, recordListPtr)) {
+                return false;
+            }
+        } else {
+        	printf("\n\nAccording to Cookies username: %s\n\n", (*recordListPtr)->playerRecord[getIdCookie(curr)].username);
+            sendDynamicPage(sockfd, MAIN_MENU_PAGE, (*recordListPtr)->playerRecord[getIdCookie(curr)].username);
         }
     } else if (method == GET_START) {
         if (!sendPage(sockfd, GAME_PLAYING_PAGE))
@@ -201,14 +228,19 @@ static bool handle_http_request(int sockfd)
             return false;
         }
     } else if (method == POST_USER) {
-        printf("POST:\n%s\n\nPOST END\n\n", buff);
+        //printf("POST:\n%s\n\nPOST END\n\n", buff);
         char *username = strstr(buff, "user=") + 5;
-        printf("username = %s\n\n\n", username);
+        //(*recordListPtr)->playerRecord[getIdCookie(curr)].username = username;
+        setUsername(recordListPtr, getIdCookie(curr), username);
+        printf("\n\nNow recordListPtr gets a username: %s\n\n", (*recordListPtr)->playerRecord[getIdCookie(curr)].username);
+        //printf("username = %s\n\n\n", username);
         if (!sendDynamicPage(sockfd, MAIN_MENU_PAGE, username)) {
             return false;
         }
     } else if (method == POST_QUIT) {
-        sendPage(sockfd, GAME_OVER_PAGE);
+        if (!sendPage(sockfd, GAME_OVER_PAGE)) {
+            return false;
+        }
     }
     // send 404
     else if (write(sockfd, HTTP_404, HTTP_404_LENGTH) < 0)
@@ -248,6 +280,39 @@ bool sendPage(int sockfd, char *page) {
     return true;
 }
 
+bool sendInitialPage(int sockfd, char *page, struct record **recordListPtr) {
+    struct stat st;
+    int n;
+    char buff[2049];
+    stat(page, &st);
+    char *header = createHeaderwithNewIdCookie((*recordListPtr)->size);
+    add(recordListPtr);
+    n = sprintf(buff, header, st.st_size);
+    // send the header first
+    if (write(sockfd, buff, n) < 0)
+    {
+        perror("write");
+        free(header);
+        return false;
+    }
+    // send the file
+    int filefd = open(page, O_RDONLY);
+    do
+    {
+        n = sendfile(sockfd, filefd, NULL, 2048);
+    } while (n > 0);
+    if (n < 0)
+    {
+        perror("sendfile");
+        close(filefd);
+        free(header);
+        return false;
+    }
+    close(filefd);
+    free(header);
+    return true;
+}
+
 bool sendDynamicPage(int sockfd, char *page, char *newContent)
 {
     char formatStart[] = "<h3>"; 
@@ -257,8 +322,8 @@ bool sendDynamicPage(int sockfd, char *page, char *newContent)
     strcat(newContentWithFormat, formatStart);
     strcat(newContentWithFormat, newContent);
     strcat(newContentWithFormat, formatEnd);
-    printf("test the newContentWithFormat:\n%s\n\nEND\n\n", newContentWithFormat);
-    printf("\n");
+    //printf("test the newContentWithFormat:\n%s\n\nEND\n\n", newContentWithFormat);
+    //printf("\n");
     int length = strlen(newContentWithFormat);
     int n;
     // get the size of the file
@@ -299,7 +364,7 @@ bool sendDynamicPage(int sockfd, char *page, char *newContent)
         free(newContentWithFormat);
         return false;
     }
-    printf("\n%s\n", buff);
+    //printf("\n%s\n", buff);
     free(newContentWithFormat);
     return true;
 }
@@ -322,4 +387,71 @@ METHOD getMethod(char **buffPtr) {
         *buffPtr += 5;
     }
     return method;
+}
+
+char *createIdCookie(int id) {
+    char *cookie = (char *)calloc(24, sizeof(char));
+    strcat(cookie, "Set-Cookie: id = ");
+    char newIdString[2];
+    sprintf(newIdString, "%d", id);
+    strcat(cookie, newIdString);
+    strcat(cookie, "\r\n\r\n");
+    //printf("cookie: %s\n\n", cookie);
+    return cookie;
+}
+
+int getIdCookie(char *data) {
+    char idString[2];
+    char *start = strstr(data, "Cookie: id=");
+    if (start == NULL) {
+        return -1;
+    }
+    char *src = start + 11;
+    strncpy(idString, src, 2);
+    return atoi(idString);
+}
+
+char *createHeaderwithNewIdCookie(int id) {
+    char *cookie = createIdCookie(id);
+    char *header = (char *)malloc(sizeof(char) * (strlen(HTTP_200_FORMAT) + strlen(cookie) + 1));
+    strcat(header, HTTP_200_FORMAT);
+    strcat(header, cookie);
+    return header;
+}
+
+bool add(struct record **recordListPtr) {
+	if((*recordListPtr)->size == 0){
+		(*recordListPtr)->playerRecord = (struct player*)malloc(sizeof(struct player));
+		(*recordListPtr)->playerRecord->id = (*recordListPtr)->size;
+		(*recordListPtr)->playerRecord->username = NULL;
+		(*recordListPtr)->playerRecord->inGame = false;
+		(*recordListPtr)->size += 1;
+		return true;
+	} else {
+		(*recordListPtr)->playerRecord = realloc((*recordListPtr)->playerRecord, sizeof(struct player) * ((*recordListPtr)->size + 1));
+		(*recordListPtr)->playerRecord[(*recordListPtr)->size].id = (*recordListPtr)->size;
+		(*recordListPtr)->playerRecord[(*recordListPtr)->size].username = NULL;
+		(*recordListPtr)->playerRecord[(*recordListPtr)->size].inGame = false;
+		(*recordListPtr)->size += 1;
+		return true;
+	}
+	return false;
+}
+
+void freeRecord(struct record **recordListPtr) {
+	if ((*recordListPtr) == NULL) {
+		return;
+	}
+	int i;
+	int size = (*recordListPtr)->size;
+	for(i = 0; i < size; i++) {
+		free((*recordListPtr)->playerRecord[i].username);
+	}
+	free((*recordListPtr)->playerRecord);
+	free((*recordListPtr));
+}
+
+void setUsername(struct record **recordListPtr, int index, char *username) {
+	(*recordListPtr)->playerRecord[index].username = (char *)calloc(strlen(username), sizeof(char));
+	strcat((*recordListPtr)->playerRecord[index].username, username);
 }
