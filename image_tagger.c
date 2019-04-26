@@ -39,13 +39,14 @@ static int const HTTP_404_LENGTH = 45;
 typedef enum
 {
     GET,
-    POST,
+    POST_USER,
     UNKNOWN
 } METHOD;
 
 bool sendPage(int sockfd, char *page);
 static bool handle_http_request(int sockfd);
 bool sendDynamicPage(int sockfd, char *page, char *newContent);
+METHOD getMethod(char **buffPtr);
 
 int main(int argc, char **argv) {
     // check whether input IP and port before start
@@ -164,23 +165,22 @@ static bool handle_http_request(int sockfd)
 
     char * curr = buff;
 
+    printf("\n************print received data****************\n");
+    printf("%s", curr);
+    printf("\n************END****************\n\n");
+
     // parse the method
-    METHOD method = UNKNOWN;
-    if (strncmp(curr, "GET ", 4) == 0)
-    {
-        curr += 4;
-        method = GET;
+    METHOD method = getMethod(&curr);
+    if (method == UNKNOWN) {
+        if (write(sockfd, HTTP_400, HTTP_400_LENGTH) < 0)
+        {
+            printf("\nMETHOD UNKNOWN\n");
+            perror("write");
+            return false;
+        }
     }
-    else if (strncmp(curr, "POST ", 5) == 0)
-    {
-        curr += 5;
-        method = POST;
-    }
-    else if (write(sockfd, HTTP_400, HTTP_400_LENGTH) < 0)
-    {
-        perror("write");
-        return false;
-    }
+
+    printf("\n\nGet method = %d \n\n", method);
 
     // sanitise the URI
     while (*curr == '.' || *curr == '/')
@@ -193,7 +193,7 @@ static bool handle_http_request(int sockfd)
                 return false;
             }
         }
-        else if (method == POST)
+        else if (method == POST_USER)
         {
             printf("POST:\n%s\n\nPOST END\n\n", buff);
             char * username = strstr(buff, "user=") + 5;
@@ -267,6 +267,7 @@ bool sendDynamicPage(int sockfd, char *page, char *newContent)
     if (write(sockfd, buff, n) < 0)
     {
         perror("write");
+        free(newContentWithFormat);
         return false;
     }
     // read the content of the HTML file
@@ -276,6 +277,7 @@ bool sendDynamicPage(int sockfd, char *page, char *newContent)
     {
         perror("read");
         close(filefd);
+        free(newContentWithFormat);
         return false;
     }
     close(filefd);
@@ -289,8 +291,24 @@ bool sendDynamicPage(int sockfd, char *page, char *newContent)
     if (write(sockfd, buff, size) < 0)
     {
         perror("write");
+        free(newContentWithFormat);
         return false;
     }
     printf("\n%s\n", buff);
+    free(newContentWithFormat);
     return true;
+}
+
+METHOD getMethod(char **buffPtr) {
+    METHOD method = UNKNOWN;
+    if (strncmp(*buffPtr, "GET ", 4) == 0) {
+        *buffPtr += 4;
+        method = GET;
+    } else if (strncmp(*buffPtr, "POST ", 5) == 0) {
+        if (strstr(*buffPtr, "user=") != NULL) {
+            method = POST_USER;
+        }
+        *buffPtr += 5;
+    }
+    return method;
 }
