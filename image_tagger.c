@@ -33,12 +33,14 @@ static int const HTTP_404_LENGTH = 45;
 
 #define WELCOME_PAGE "1_intro.html"
 #define MAIN_MENU_PAGE "2_start.html"
+#define GAME_PLAYING_PAGE "3_first_turn.html"
 #define NUM_PLAYERS 2
 
 // represents the types of method
 typedef enum
 {
     GET,
+    GET_START,
     POST_USER,
     UNKNOWN
 } METHOD;
@@ -186,25 +188,24 @@ static bool handle_http_request(int sockfd)
     while (*curr == '.' || *curr == '/')
         ++curr;
     // assume the only valid request URI is "/" but it can be modified to accept more files
-    if (*curr == ' ')
-        if (method == GET)
-        {
-            if (!sendPage(sockfd, WELCOME_PAGE)) {
-                return false;
-            }
+
+    if (method == GET) {
+        if (!sendPage(sockfd, WELCOME_PAGE)) {
+            return false;
         }
-        else if (method == POST_USER)
+    } else if (method == GET_START) {
+        if (!sendPage(sockfd, GAME_PLAYING_PAGE))
         {
-            printf("POST:\n%s\n\nPOST END\n\n", buff);
-            char * username = strstr(buff, "user=") + 5;
-            printf("username = %s\n\n\n", username);
-            if (!sendDynamicPage(sockfd, MAIN_MENU_PAGE, username)) {
-                return false;
-            }
+            return false;
         }
-        else
-            // never used, just for completeness
-            fprintf(stderr, "no other methods supported");
+    } else if (method == POST_USER) {
+        printf("POST:\n%s\n\nPOST END\n\n", buff);
+        char *username = strstr(buff, "user=") + 5;
+        printf("username = %s\n\n\n", username);
+        if (!sendDynamicPage(sockfd, MAIN_MENU_PAGE, username)) {
+            return false;
+        }
+    } 
     // send 404
     else if (write(sockfd, HTTP_404, HTTP_404_LENGTH) < 0)
     {
@@ -302,8 +303,12 @@ bool sendDynamicPage(int sockfd, char *page, char *newContent)
 METHOD getMethod(char **buffPtr) {
     METHOD method = UNKNOWN;
     if (strncmp(*buffPtr, "GET ", 4) == 0) {
+        if (strstr(*buffPtr, "start") != NULL) {
+            method = GET_START;
+        } else {
+          method = GET;  
+        }
         *buffPtr += 4;
-        method = GET;
     } else if (strncmp(*buffPtr, "POST ", 5) == 0) {
         if (strstr(*buffPtr, "user=") != NULL) {
             method = POST_USER;
