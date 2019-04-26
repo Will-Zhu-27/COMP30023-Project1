@@ -34,6 +34,7 @@ static int const HTTP_404_LENGTH = 45;
 #define WELCOME_PAGE "1_intro.html"
 #define MAIN_MENU_PAGE "2_start.html"
 #define GAME_PLAYING_PAGE "3_first_turn.html"
+#define GAME_OVER_PAGE "7_gameover.html"
 #define NUM_PLAYERS 2
 
 // represents the types of method
@@ -42,6 +43,7 @@ typedef enum
     GET,
     GET_START,
     POST_USER,
+    POST_QUIT,
     UNKNOWN
 } METHOD;
 
@@ -205,7 +207,9 @@ static bool handle_http_request(int sockfd)
         if (!sendDynamicPage(sockfd, MAIN_MENU_PAGE, username)) {
             return false;
         }
-    } 
+    } else if (method == POST_QUIT) {
+        sendPage(sockfd, GAME_OVER_PAGE);
+    }
     // send 404
     else if (write(sockfd, HTTP_404, HTTP_404_LENGTH) < 0)
     {
@@ -312,6 +316,8 @@ METHOD getMethod(char **buffPtr) {
     } else if (strncmp(*buffPtr, "POST ", 5) == 0) {
         if (strstr(*buffPtr, "user=") != NULL) {
             method = POST_USER;
+        } else if (strstr(*buffPtr, "quit") != NULL) {
+            method = POST_QUIT;
         }
         *buffPtr += 5;
     }
