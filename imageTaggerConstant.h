@@ -17,4 +17,5 @@ static int const HTTP_404_LENGTH = 45;
 #define MAIN_MENU_PAGE "2_start.html"
 #define GAME_PLAYING_PAGE "3_first_turn.html"
 #define GAME_OVER_PAGE "7_gameover.html"
+#define KEYWORD_DISCARDED_PAGE "5_discarded.html"
 #define NUM_PLAYERS 2

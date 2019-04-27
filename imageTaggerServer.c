@@ -34,6 +34,7 @@ typedef enum
     GET_START,
     POST_USER,
     POST_QUIT,
+    POST_GUESS,
     UNKNOWN
 } METHOD;
 
@@ -57,10 +58,13 @@ METHOD getMethod(char **buffPtr);
 char *createIdCookie(int lastestId);
 int getIdCookie(char *data);
 bool sendInitialPage(int sockfd, char *page, struct record **recordListPtr);
-char *createHeaderwithNewIdCookie(int lastestId);
+char *createHeaderwithNewIdCookie(struct record **recordListPtr);
 void freeRecord(struct record **recordListPtr);
-bool add(struct record **recordListPtr);
+bool addPlayerRecord(struct record **recordListPtr);
 void setUsername(struct record **recordListPtr, int index, char *username);
+bool setPlayerInGame(int index, bool newStatus, struct record **recordListPtr);
+bool checkRivalStatus(int requestedIndex, struct record **recordListPtr);
+
 
 void runServer(char *mainProgram, char *ip, char *port) {
 	// record players who have ever connected the server
@@ -210,6 +214,7 @@ static bool handle_http_request(int sockfd, struct record **recordListPtr) {
         {
             return false;
         }
+        setPlayerInGame(getIdCookie(curr), true, recordListPtr);
     } else if (method == POST_USER) {
         //printf("POST:\n%s\n\nPOST END\n\n", buff);
         char *username = strstr(buff, "user=") + 5;
@@ -220,7 +225,16 @@ static bool handle_http_request(int sockfd, struct record **recordListPtr) {
         if (!sendDynamicPage(sockfd, MAIN_MENU_PAGE, username)) {
             return false;
         }
-    } else if (method == POST_QUIT) {
+    } else if(method == POST_GUESS) {
+    	if(checkRivalStatus(getIdCookie(curr), recordListPtr) == false) {
+    		if (!sendPage(sockfd, KEYWORD_DISCARDED_PAGE))
+        	{
+            	return false;
+        	}
+		} else {
+			
+		}
+	}else if (method == POST_QUIT) {
         if (!sendPage(sockfd, GAME_OVER_PAGE)) {
             return false;
         }
@@ -268,8 +282,8 @@ bool sendInitialPage(int sockfd, char *page, struct record **recordListPtr) {
     int n;
     char buff[2049];
     stat(page, &st);
-    char *header = createHeaderwithNewIdCookie((*recordListPtr)->size);
-    add(recordListPtr);
+    char *header = createHeaderwithNewIdCookie(recordListPtr);
+    
     n = sprintf(buff, header, st.st_size);
     // send the header first
     if (write(sockfd, buff, n) < 0)
@@ -366,7 +380,9 @@ METHOD getMethod(char **buffPtr) {
             method = POST_USER;
         } else if (strstr(*buffPtr, "quit") != NULL) {
             method = POST_QUIT;
-        }
+        } else if (strstr(*buffPtr, "guess") != NULL) {
+            method = POST_GUESS;
+        } 
         *buffPtr += 5;
     }
     return method;
@@ -394,15 +410,17 @@ int getIdCookie(char *data) {
     return atoi(idString);
 }
 
-char *createHeaderwithNewIdCookie(int id) {
+char *createHeaderwithNewIdCookie(struct record **recordListPtr) {
+	int id = (*recordListPtr)->size;
     char *cookie = createIdCookie(id);
     char *header = (char *)malloc(sizeof(char) * (strlen(HTTP_200_FORMAT) + strlen(cookie) + 1));
     strcat(header, HTTP_200_FORMAT);
     strcat(header, cookie);
+    addPlayerRecord(recordListPtr);
     return header;
 }
 
-bool add(struct record **recordListPtr) {
+bool addPlayerRecord(struct record **recordListPtr) {
 	if((*recordListPtr)->size == 0){
 		(*recordListPtr)->playerRecord = (struct player*)malloc(sizeof(struct player));
 		(*recordListPtr)->playerRecord->id = (*recordListPtr)->size;
@@ -437,4 +455,28 @@ void freeRecord(struct record **recordListPtr) {
 void setUsername(struct record **recordListPtr, int index, char *username) {
 	(*recordListPtr)->playerRecord[index].username = (char *)calloc(strlen(username), sizeof(char));
 	strcat((*recordListPtr)->playerRecord[index].username, username);
+}
+
+bool setPlayerInGame(int index, bool newStatus, struct record **recordListPtr) {
+	if ((*recordListPtr)->size <= index) {
+		return false;
+	}
+	(*recordListPtr)->playerRecord[index].inGame = newStatus;
+	return true;
+}
+
+bool checkRivalStatus(int requestedIndex, struct record **recordListPtr) {
+	if ((*recordListPtr)->size <= requestedIndex) {
+		exit(EXIT_FAILURE);
+	}
+	int i;
+	for (i = 0; i < (*recordListPtr)->size; i++) {
+		if (i == requestedIndex) {
+			continue;
+		}
+		if ((*recordListPtr)->playerRecord[i].inGame == true) {
+			return true;
+		}
+	}
+	return false;
 }
