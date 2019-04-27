@@ -41,7 +41,10 @@ typedef enum
 struct player {
     int id;
     char *username;
+    int keywordListSize;
+    char **keywordListPtr;
     bool inGame;
+    bool win;
 };
 
 struct record {
@@ -53,7 +56,7 @@ struct record {
 void runServer(char *mainProgram, char *ip, char *port);
 bool sendPage(int sockfd, char *page);
 static bool handle_http_request(int sockfd, struct record **recordListPtr);
-bool sendDynamicPage(int sockfd, char *page, char *newContent);
+bool sendDynamicPage(int sockfd, char *page, char *newContent, int before);
 METHOD getMethod(char **buffPtr);
 char *createIdCookie(int lastestId);
 int getIdCookie(char *data);
@@ -64,12 +67,19 @@ bool addPlayerRecord(struct record **recordListPtr);
 void setUsername(struct record **recordListPtr, int index, char *username);
 bool setPlayerInGame(int index, bool newStatus, struct record **recordListPtr);
 bool checkRivalStatus(int requestedIndex, struct record **recordListPtr);
-
+bool addPlayerKeyword(char *keyword, int index, struct record **recordListPtr);
+int getRivalId(int requestedIndex, struct record **recordListPtr);
+bool checkRivalKeywordList(int requestedIndex, char *keyword, struct record **recordListPtr);
+bool checkWinningPlayer(struct record **recordListPtr);
+char *getAllKeywords(int index, struct record **recordListPtr);
+bool sendAcceptedPage(char *keyword, int index, struct record **recordListPtr, int sockfd);
+char *getKeyword(char *data);
 
 void runServer(char *mainProgram, char *ip, char *port) {
 	// record players who have ever connected the server
 	struct record *recordList = (struct record *)malloc(sizeof(struct record));
-
+	recordList->playerRecord = NULL;
+	recordList->size = 0;
     // create TCP socket which only accept IPv4
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
@@ -207,7 +217,13 @@ static bool handle_http_request(int sockfd, struct record **recordListPtr) {
             }
         } else {
         	printf("\n\nAccording to Cookies username: %s\n\n", (*recordListPtr)->playerRecord[getIdCookie(curr)].username);
-            sendDynamicPage(sockfd, MAIN_MENU_PAGE, (*recordListPtr)->playerRecord[getIdCookie(curr)].username);
+            if ((*recordListPtr)->playerRecord[getIdCookie(curr)].username == NULL){
+                if (!sendPage(sockfd, WELCOME_PAGE)) {
+                    return false;
+                }
+            } else {
+                sendDynamicPage(sockfd, MAIN_MENU_PAGE, (*recordListPtr)->playerRecord[getIdCookie(curr)].username, 214);
+            }
         }
     } else if (method == GET_START) {
         if (!sendPage(sockfd, GAME_PLAYING_PAGE))
@@ -222,7 +238,7 @@ static bool handle_http_request(int sockfd, struct record **recordListPtr) {
         setUsername(recordListPtr, getIdCookie(curr), username);
         printf("\n\nNow recordListPtr gets a username: %s\n\n", (*recordListPtr)->playerRecord[getIdCookie(curr)].username);
         //printf("username = %s\n\n\n", username);
-        if (!sendDynamicPage(sockfd, MAIN_MENU_PAGE, username)) {
+        if (!sendDynamicPage(sockfd, MAIN_MENU_PAGE, username, 214)) {
             return false;
         }
     } else if(method == POST_GUESS) {
@@ -231,10 +247,23 @@ static bool handle_http_request(int sockfd, struct record **recordListPtr) {
         	{
             	return false;
         	}
+		} else if (checkWinningPlayer(recordListPtr) == true) {
+			if (!sendPage(sockfd, GAME_COMPLETED_PAGE)) {
+            	return false;
+        	}
 		} else {
-			
-		}
-	}else if (method == POST_QUIT) {
+			char *keyword = getKeyword(curr);
+			if(checkRivalKeywordList(getIdCookie(curr), keyword, recordListPtr) == true) {
+				(*recordListPtr)->playerRecord[getIdCookie(curr)].win = true;
+                free(keyword);
+				if (!sendPage(sockfd, GAME_COMPLETED_PAGE)) {
+            		return false;
+        		}
+			} else {
+				sendAcceptedPage(keyword, getIdCookie(curr), recordListPtr, sockfd);
+			}
+		}		
+	} else if (method == POST_QUIT) {
         if (!sendPage(sockfd, GAME_OVER_PAGE)) {
             return false;
         }
@@ -247,6 +276,15 @@ static bool handle_http_request(int sockfd, struct record **recordListPtr) {
     }
 
     return true;
+}
+
+char *getKeyword(char *data) {
+	int length = strstr(data,"&guess=Guess") - strstr(data, "keyword=") - 8;
+    printf("%d\n", length);
+    char *keyword = (char *)calloc(length, sizeof(char));
+    strncpy(keyword, strstr(data, "keyword=") + 8, length);
+    printf("keyword = %s\n\n", keyword);
+    return keyword;
 }
 
 bool sendPage(int sockfd, char *page) {
@@ -310,8 +348,7 @@ bool sendInitialPage(int sockfd, char *page, struct record **recordListPtr) {
     return true;
 }
 
-bool sendDynamicPage(int sockfd, char *page, char *newContent)
-{
+bool sendDynamicPage(int sockfd, char *page, char *newContent, int before) {
     char formatStart[] = "<h3>"; 
     char formatEnd[] = "</h3>";
     int sizeWithFormat = strlen(formatStart) + strlen(formatEnd) + strlen(newContent) + 1;
@@ -350,7 +387,7 @@ bool sendDynamicPage(int sockfd, char *page, char *newContent)
     close(filefd);
     // move the trailing part backward
     int p1, p2;
-    for (p1 = size - 1, p2 = p1 - length; p1 >= size - 214; --p1, --p2)
+    for (p1 = size - 1, p2 = p1 - length; p1 >= size - before; --p1, --p2)
         buff[p1] = buff[p2];
     ++p2;
     // copy the username
@@ -364,6 +401,44 @@ bool sendDynamicPage(int sockfd, char *page, char *newContent)
     //printf("\n%s\n", buff);
     free(newContentWithFormat);
     return true;
+}
+
+bool sendAcceptedPage(char *keyword, int index, struct record **recordListPtr, int sockfd) {
+	addPlayerKeyword(keyword, index, recordListPtr);
+	char *newContent = getAllKeywords(index, recordListPtr);
+    printf("\n\nThe keywordList = %s\n\n", newContent);
+	bool ret = sendDynamicPage(sockfd, KEYWORD_ACCEPTED_PAGE, newContent, 264);
+	free(newContent);
+	return ret;
+}
+
+char *getAllKeywords(int index, struct record **recordListPtr) {
+	if ((*recordListPtr)->playerRecord[index].keywordListSize == 0) {
+		//printf("return NULL");
+		return NULL;
+	}
+
+	char *allKeywords = NULL;
+	int keywordListSize = (*recordListPtr)->playerRecord[index].keywordListSize;
+	int allKeywordsSize = 0;
+	int i;
+	int temp;
+	for (i = 0; i < keywordListSize; i++) {
+		temp = strlen((*recordListPtr)->playerRecord[index].keywordListPtr[i]);
+		//printf("%d length is %d\n\n", i, temp);
+		allKeywordsSize += temp;
+		allKeywordsSize++;
+	}
+	allKeywords = (char *)calloc(allKeywordsSize, sizeof(char));
+	for (i = 0; i < keywordListSize; i++) {
+		strcat(allKeywords, (*recordListPtr)->playerRecord[index].keywordListPtr[i]);
+		if (i == keywordListSize - 1){
+			continue;
+		}
+		strcat(allKeywords, ",");
+	}
+    strcat(allKeywords, "\n");
+	return allKeywords;
 }
 
 METHOD getMethod(char **buffPtr) {
@@ -413,40 +488,84 @@ int getIdCookie(char *data) {
 char *createHeaderwithNewIdCookie(struct record **recordListPtr) {
 	int id = (*recordListPtr)->size;
     char *cookie = createIdCookie(id);
-    char *header = (char *)malloc(sizeof(char) * (strlen(HTTP_200_FORMAT) + strlen(cookie) + 1));
-    strcat(header, HTTP_200_FORMAT);
+    char *header = (char *)malloc(sizeof(char) * (strlen(HTTP_200_FORMAT_NEED_COOKIE) + strlen(cookie) + 1));
+    strcat(header, HTTP_200_FORMAT_NEED_COOKIE);
     strcat(header, cookie);
     addPlayerRecord(recordListPtr);
     return header;
 }
 
 bool addPlayerRecord(struct record **recordListPtr) {
-	if((*recordListPtr)->size == 0){
-		(*recordListPtr)->playerRecord = (struct player*)malloc(sizeof(struct player));
-		(*recordListPtr)->playerRecord->id = (*recordListPtr)->size;
-		(*recordListPtr)->playerRecord->username = NULL;
-		(*recordListPtr)->playerRecord->inGame = false;
-		(*recordListPtr)->size += 1;
-		return true;
+	if((*recordListPtr)->size == 0) {
+		(*recordListPtr)->playerRecord = (struct player *)malloc(sizeof(struct player));
 	} else {
 		(*recordListPtr)->playerRecord = realloc((*recordListPtr)->playerRecord, sizeof(struct player) * ((*recordListPtr)->size + 1));
-		(*recordListPtr)->playerRecord[(*recordListPtr)->size].id = (*recordListPtr)->size;
-		(*recordListPtr)->playerRecord[(*recordListPtr)->size].username = NULL;
-		(*recordListPtr)->playerRecord[(*recordListPtr)->size].inGame = false;
-		(*recordListPtr)->size += 1;
-		return true;
+	}
+	(*recordListPtr)->playerRecord[(*recordListPtr)->size].id = (*recordListPtr)->size;
+	(*recordListPtr)->playerRecord[(*recordListPtr)->size].username = NULL;
+	(*recordListPtr)->playerRecord[(*recordListPtr)->size].inGame = false;
+	(*recordListPtr)->playerRecord[(*recordListPtr)->size].keywordListPtr = NULL;
+	(*recordListPtr)->playerRecord[(*recordListPtr)->size].keywordListSize = 0;
+	(*recordListPtr)->playerRecord[(*recordListPtr)->size].win = false;
+	(*recordListPtr)->size += 1;
+	return true;
+}
+
+bool checkWinningPlayer(struct record **recordListPtr) {
+	int i;
+	for (i = 0; i < (*recordListPtr)->size; i++) {
+		if ((*recordListPtr)->playerRecord[i].win == true) {
+			return true;
+		}
 	}
 	return false;
+}
+
+bool addPlayerKeyword(char *keyword, int index, struct record **recordListPtr) {
+	if ((*recordListPtr)->size <= index) {
+		exit(EXIT_FAILURE);
+	}
+	//printf("\nkeyword is %s, length is %ld\n\n", keyword, strlen(keyword));
+	//char *addedKeyword = (char *)malloc(sizeof(char) * (strlen(keyword)+1));
+	//strcpy(addedKeyword, keyword);
+
+	int keywordListSize = (*recordListPtr)->playerRecord[index].keywordListSize;
+	//printf("Now the keyword list size is %d \n", keywordListSize);
+	if (keywordListSize == 0) {
+		//printf("use malloc\n");
+		(*recordListPtr)->playerRecord[index].keywordListPtr = (char **)malloc(sizeof(char *));
+	} else {
+		//printf("use realloc\n");
+		(*recordListPtr)->playerRecord[index].keywordListPtr = (char **)realloc((*recordListPtr)->playerRecord[index].keywordListPtr, sizeof(char *) * (keywordListSize + 1));
+	}
+	/*if(keywordListSize == 0) {
+		*((*recordListPtr)->playerRecord[index].keywordListPtr) = addedKeyword;
+	} else {
+		*((*recordListPtr)->playerRecord[index].keywordListPtr)[keywordListSize] = addedKeyword;
+	}*/
+	
+	(*recordListPtr)->playerRecord[index].keywordListPtr[keywordListSize] = keyword;
+	(*recordListPtr)->playerRecord[index].keywordListSize++;
+	return true;
 }
 
 void freeRecord(struct record **recordListPtr) {
 	if ((*recordListPtr) == NULL) {
 		return;
 	}
-	int i;
+	
+	int i, j;
 	int size = (*recordListPtr)->size;
 	for(i = 0; i < size; i++) {
 		free((*recordListPtr)->playerRecord[i].username);
+		
+		if ((*recordListPtr)->playerRecord[i].keywordListPtr == NULL) {
+			continue;
+		}
+		for(j = 0; j < (*recordListPtr)->playerRecord[i].keywordListSize; j++) {
+			free((*recordListPtr)->playerRecord[i].keywordListPtr[j]);
+		}
+		free((*recordListPtr)->playerRecord[i].keywordListPtr);
 	}
 	free((*recordListPtr)->playerRecord);
 	free((*recordListPtr));
@@ -479,4 +598,33 @@ bool checkRivalStatus(int requestedIndex, struct record **recordListPtr) {
 		}
 	}
 	return false;
+}
+
+bool checkRivalKeywordList(int requestedIndex, char *keyword, struct record **recordListPtr) {
+	if ((*recordListPtr)->size <= requestedIndex) {
+		exit(EXIT_FAILURE);
+	}
+	int rivalId = getRivalId(requestedIndex, recordListPtr);
+	int i;
+	char **keywordListPtr = (*recordListPtr)->playerRecord[rivalId].keywordListPtr;
+	for (i = 0; i < (*recordListPtr)->playerRecord[rivalId].keywordListSize; i++) {
+		if (strcmp(keyword, keywordListPtr[i]) == 0){
+			return true;
+		}
+	}
+	return false;
+}
+
+int getRivalId(int requestedIndex, struct record **recordListPtr) {
+	int i;
+	int size = (*recordListPtr)->size;
+	for (i = 0; i < size; i++) {
+		if (i == requestedIndex) {
+			continue;
+		}
+		if ((*recordListPtr)->playerRecord[i].inGame == true) {
+			return i;
+		}
+	}
+	return -1;
 }
