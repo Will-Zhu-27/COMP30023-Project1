@@ -208,6 +208,7 @@ static bool handle_http_request(int sockfd, struct record **recordListPtr) {
             return false;
         }
         setPlayerInGame(getIdCookie(curr), true, recordListPtr);
+        setPlayerWin(getIdCookie(curr), false, recordListPtr);
     } else if (method == POST_USER) {
         //printf("POST:\n%s\n\nPOST END\n\n", buff);
         char *username = strstr(buff, "user=") + 5;
@@ -225,10 +226,10 @@ static bool handle_http_request(int sockfd, struct record **recordListPtr) {
             	return false;
         	}
 		} else if (checkWinningPlayer(recordListPtr) == true) {
-            setPlayerInGame(getIdCookie(curr), false, recordListPtr);
-			if (!sendPage(sockfd, GAME_COMPLETED_PAGE)) {
+            if (!sendPage(sockfd, GAME_COMPLETED_PAGE)) {
             	return false;
         	}
+            playerLeaveGame(getIdCookie(curr),recordListPtr);
 		} else {
 			char *keyword = getKeyword(curr);
 			if(checkRivalKeywordList(getIdCookie(curr), keyword, recordListPtr) == true) {
@@ -239,23 +240,22 @@ static bool handle_http_request(int sockfd, struct record **recordListPtr) {
 				if (!sendPage(sockfd, GAME_COMPLETED_PAGE)) {
             		return false;
         		}
+                playerLeaveGame(getIdCookie(curr),recordListPtr);
 			} else {
 				sendAcceptedPage(keyword, getIdCookie(curr), recordListPtr, sockfd);
 			}
 		}		
 	} else if (method == POST_QUIT) {
-        setPlayerInGame(getIdCookie(curr), false, recordListPtr);
         if (!sendPage(sockfd, GAME_OVER_PAGE)) {
             return false;
         }
+        playerLeaveGame(getIdCookie(curr),recordListPtr);
     }
     // send 404
-    else if (write(sockfd, HTTP_404, HTTP_404_LENGTH) < 0)
-    {
+    else if (write(sockfd, HTTP_404, HTTP_404_LENGTH) < 0) {
         perror("write");
         return false;
     }
-
     return true;
 }
 

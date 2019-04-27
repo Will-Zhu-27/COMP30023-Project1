@@ -22,3 +22,4 @@ bool checkWinningPlayer(struct record **recordListPtr);
 char *getAllKeywords(int index, struct record **recordListPtr);
 char *getUsername(int index, struct record **recordListPtr);
 int getRecordSize(struct record **recordListPtr);
+void playerLeaveGame(int index, struct record **recordListPtr);

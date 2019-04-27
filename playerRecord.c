@@ -43,6 +43,8 @@ char *getAllKeywords(int index, struct record **recordListPtr);
 char *getUsername(int index, struct record **recordListPtr);
 int getRecordSize(struct record **recordListPtr);
 bool setPlayerWin(int index, bool newStatus, struct record **recordListPtr);
+bool freePlayerkeywordList(int index, struct record **recordListPtr);
+void playerLeaveGame(int index, struct record **recordListPtr);
 
 struct record *createRecordList() {
 	struct record *recordList = (struct record *)malloc(sizeof(struct record));
@@ -231,4 +233,24 @@ bool setPlayerWin(int index, bool newStatus, struct record **recordListPtr) {
 	}
 	(*recordListPtr)->playerRecord[index].win = newStatus;
 	return true;
+}
+
+bool freePlayerkeywordList(int index, struct record **recordListPtr) {
+	if ((*recordListPtr)->playerRecord == NULL || (*recordListPtr)->size <= index) {
+		return false;
+	}
+	if ((*recordListPtr)->playerRecord[index].keywordListPtr == NULL) {
+		return true;
+	}
+	int i;
+	for(i = 0; i < (*recordListPtr)->playerRecord[index].keywordListSize; i++) {
+		free((*recordListPtr)->playerRecord[index].keywordListPtr[i]);
+	}
+	free((*recordListPtr)->playerRecord[index].keywordListPtr);
+	return true;	
+}
+
+void playerLeaveGame(int index, struct record **recordListPtr) {
+	freePlayerkeywordList(index, recordListPtr);
+	setPlayerInGame(index, false, recordListPtr);
 }
