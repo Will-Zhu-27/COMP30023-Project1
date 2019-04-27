@@ -1,8 +1,9 @@
 /**
  * COMP30023 Project 1
- * This header file imageTaggerConstant.h stores constants and is used in image_taggerServer.c 
+ * This header file imageTaggerConstant.h stores constants and is used in imageTaggerServer.c 
  * Name: Yuqiang Zhu. ID: 853912
  * Email: yuqiangz@student.unimelb.edu.au
+ *
  */
  
 static char const * const HTTP_200_FORMAT = "HTTP/1.1 200 OK\r\n\
