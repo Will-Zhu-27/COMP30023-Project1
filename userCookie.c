@@ -23,20 +23,25 @@ struct cookieList {
 	struct player *playerRecord;
 };
 
+// function prototype
 struct cookieList * createRecordList();
 bool playerExist(int playerId, struct cookieList *recordListPtr);
 int getRecordSize(struct cookieList *recordListPtr);
 int newPlayerRecord(struct cookieList *recordListPtr);
 char *getUsername(int playerId, struct cookieList *recordListPtr);
 void setUsername(struct cookieList *recordListPtr, int playerId, char *username);
-bool checkPlayerKeywordList(int playerId, char *keyword, struct cookieList *recordListPtr);
-bool addPlayerKeyword(char *keyword, int playerId, struct cookieList *recordListPtr);
+bool checkPlayerKeywordList(int playerId, char *keyword, 
+	struct cookieList *recordListPtr);
+bool addPlayerKeyword(char *keyword, int playerId, 
+	struct cookieList *recordListPtr);
 char *getAllKeywords(int playerId, struct cookieList *recordListPtr);
 bool freePlayerkeywordList(int playerId, struct cookieList *recordListPtr);
 void freeRecordList(struct cookieList *recordListPtr);
 
+/* create a new cookieList to store the cookie information */
 struct cookieList *createRecordList(){
-	struct cookieList *recordListPtr = (struct cookieList *)malloc(sizeof(struct cookieList));
+	struct cookieList *recordListPtr = 
+		(struct cookieList *)malloc(sizeof(struct cookieList));
 	recordListPtr->playerRecord = NULL;
 	recordListPtr->size = 0;
 	return recordListPtr;
@@ -59,9 +64,12 @@ int getRecordSize(struct cookieList *recordListPtr) {
 	return recordListPtr->size;
 }
 
+/* add a new player cookie infomation */
 int newPlayerRecord(struct cookieList *recordListPtr) {
 	int newId = recordListPtr->size;
-	recordListPtr->playerRecord = (struct player *)realloc(recordListPtr->playerRecord, sizeof(struct player) * (recordListPtr->size + 1));
+	recordListPtr->playerRecord = (struct player *)realloc(
+			recordListPtr->playerRecord, sizeof(struct player) 
+			* (recordListPtr->size + 1));
 	recordListPtr->playerRecord[recordListPtr->size].id = recordListPtr->size;
 	recordListPtr->playerRecord[recordListPtr->size].username = NULL;
 	recordListPtr->playerRecord[recordListPtr->size].keywordListPtr = NULL;
@@ -71,24 +79,29 @@ int newPlayerRecord(struct cookieList *recordListPtr) {
 }
 
 char *getUsername(int playerId, struct cookieList *recordListPtr) {
-	if (recordListPtr->playerRecord == NULL || recordListPtr->playerRecord[playerId].username == NULL) {
+	if (recordListPtr->playerRecord == NULL ||
+		 recordListPtr->playerRecord[playerId].username == NULL) {
 		return NULL;
 	}
 	return recordListPtr->playerRecord[playerId].username;
 }
 
 void setUsername(struct cookieList *recordListPtr, int playerId, char *username) {
-	recordListPtr->playerRecord[playerId].username = (char *)calloc(strlen(username)+1, sizeof(char));
+	recordListPtr->playerRecord[playerId].username = 
+		(char *)calloc(strlen(username)+1, sizeof(char));
 	strcpy(recordListPtr->playerRecord[playerId].username, username);
 }
 
-bool checkPlayerKeywordList(int playerId, char *keyword, struct cookieList *recordListPtr) {
+/* check this keyword whether is ever submitted by this player */
+bool checkPlayerKeywordList(int playerId, char *keyword, 
+	struct cookieList *recordListPtr) {
 	if (playerExist(playerId, recordListPtr) == false) {
 		exit(EXIT_FAILURE);
 	}
 	int i;
-	char **keywordListPtr = recordListPtr->playerRecord[playerId].keywordListPtr;
-	for (i = 0; i < recordListPtr->playerRecord[playerId].keywordListSize; i++) {
+	char **keywordListPtr = 
+		recordListPtr->playerRecord[playerId].keywordListPtr;
+	for (i = 0; i < recordListPtr->playerRecord[playerId].keywordListSize; i++){
 		if (strcmp(keyword, keywordListPtr[i]) == 0){
 			return true;
 		}
@@ -96,13 +109,18 @@ bool checkPlayerKeywordList(int playerId, char *keyword, struct cookieList *reco
 	return false;
 }
 
-bool addPlayerKeyword(char *keyword, int playerId, struct cookieList *recordListPtr) {
+/* add the keyword into player's keyword list */
+bool addPlayerKeyword(char *keyword, int playerId, 
+	struct cookieList *recordListPtr) {
 	if (playerExist(playerId, recordListPtr) == false) {
 		exit(EXIT_FAILURE);
 	}
 	int keywordListSize = recordListPtr->playerRecord[playerId].keywordListSize;
-	recordListPtr->playerRecord[playerId].keywordListPtr = (char **)realloc(recordListPtr->playerRecord[playerId].keywordListPtr, sizeof(char *) * (keywordListSize + 1));
-	recordListPtr->playerRecord[playerId].keywordListPtr[keywordListSize] = keyword;
+	recordListPtr->playerRecord[playerId].keywordListPtr = (char **)realloc
+		(recordListPtr->playerRecord[playerId].keywordListPtr, 
+		sizeof(char *) * (keywordListSize + 1));
+	recordListPtr->playerRecord[playerId].keywordListPtr[keywordListSize] 
+		= keyword;
 	recordListPtr->playerRecord[playerId].keywordListSize++;
 	return true;
 }
@@ -126,7 +144,8 @@ char *getAllKeywords(int playerId, struct cookieList *recordListPtr) {
 	}
 	allKeywords = (char *)calloc(allKeywordsSize, sizeof(char));
 	for (i = 0; i < keywordListSize; i++) {
-		strcat(allKeywords, recordListPtr->playerRecord[playerId].keywordListPtr[i]);
+		strcat(allKeywords, 
+			recordListPtr->playerRecord[playerId].keywordListPtr[i]);
 		if (i == keywordListSize - 1){
 			continue;
 		}

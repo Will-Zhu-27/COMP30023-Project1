@@ -17,8 +17,7 @@ int main(int argc, char **argv) {
         return 0;
     }
     
+    // launch the server
     runServer(argv[0], argv[1], argv[2]);
     return 0;
 }
-
-

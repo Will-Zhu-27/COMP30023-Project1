@@ -30,15 +30,18 @@ int main(int argc, char **argv) {
 
 bool add(struct record **recordListPtr) {
 	if((*recordListPtr)->size == 0){
-		(*recordListPtr)->playerRecord = (struct player*)malloc(sizeof(struct player));
+		(*recordListPtr)->playerRecord = 
+			(struct player*)malloc(sizeof(struct player));
 		(*recordListPtr)->playerRecord->id = (*recordListPtr)->size;
 		(*recordListPtr)->playerRecord->username = NULL;
 		(*recordListPtr)->playerRecord->inGame = false;
 		(*recordListPtr)->size += 1;
 		return true;
 	} else {
-		(*recordListPtr)->playerRecord = realloc((*recordListPtr)->playerRecord, sizeof(struct player) * ((*recordListPtr)->size + 1));
-		(*recordListPtr)->playerRecord[(*recordListPtr)->size].id = (*recordListPtr)->size;
+		(*recordListPtr)->playerRecord = realloc((*recordListPtr)->playerRecord,
+			 sizeof(struct player) * ((*recordListPtr)->size + 1));
+		(*recordListPtr)->playerRecord[(*recordListPtr)->size].id = 
+			(*recordListPtr)->size;
 		(*recordListPtr)->playerRecord[(*recordListPtr)->size].username = NULL;
 		(*recordListPtr)->playerRecord[(*recordListPtr)->size].inGame = false;
 		(*recordListPtr)->size += 1;

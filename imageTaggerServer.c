@@ -5,7 +5,7 @@
  * Email: yuqiangz@student.unimelb.edu.au
  */
  
-// my header file
+
 #include "imageTaggerServer.h"
 #include "imageTaggerConstant.h"
 #include "userCookie.h"
@@ -40,25 +40,35 @@ typedef enum
     UNKNOWN
 } METHOD;
 
+// function prototype
 void runServer(char *mainProgram, char *ip, char *port);
-static bool handle_http_request(int sockfd, struct test *imageTestPtr, struct cookieList *recordListPtr);
-bool getMethodProcess(int sockfd, char *data, struct test *imageTestPtr, struct cookieList *recordList);
-bool getStartMethodProcess(int sockfd, char *data, struct test *imageTestPtr, struct cookieList *recordList);
-bool postUserMethodProcess(int sockfd, char *data, struct test *imageTestPtr, struct cookieList *recordListPtr);
-bool postGuessMethodProcess(int sockfd, char *data, struct test *imageTestPtr, struct cookieList *recordListPtr);
-bool postQuitMethodProcess(int sockfd, char *data, struct test *imageTestPtr, struct cookieList *recordListPtr);
+static bool handle_http_request(int sockfd, struct test *imageTestPtr, 
+    struct cookieList *recordListPtr);
+bool getMethodProcess(int sockfd, char *data, struct test *imageTestPtr, 
+    struct cookieList *recordList);
+bool getStartMethodProcess(int sockfd, char *data, struct test *imageTestPtr, 
+    struct cookieList *recordList);
+bool postUserMethodProcess(int sockfd, char *data, struct test *imageTestPtr, 
+    struct cookieList *recordListPtr);
+bool postGuessMethodProcess(int sockfd, char *data, struct test *imageTestPtr, 
+    struct cookieList *recordListPtr);
+bool postQuitMethodProcess(int sockfd, char *data, struct test *imageTestPtr, 
+    struct cookieList *recordListPtr);
 int getIdCookie(char *data);
 bool sendPage(int sockfd, char *page, struct test *imageTestPtr);
-bool sendInitialPage(int sockfd, struct cookieList *recordListPtr, struct test *imageTestPtr);
-bool sendDynamicPage(int sockfd, char *page, char *newContent, int before, struct test *imageTestPtr);
-bool sendAcceptedPage(int playerId, struct cookieList *recordListPtr, int sockfd, struct test *imageTestPtr);
+bool sendInitialPage(int sockfd, struct cookieList *recordListPtr, 
+    struct test *imageTestPtr);
+bool sendDynamicPage(int sockfd, char *page, char *newContent, int before, 
+    struct test *imageTestPtr);
+bool sendAcceptedPage(int playerId, struct cookieList *recordListPtr, 
+    int sockfd, struct test *imageTestPtr);
 char *createHeaderwithNewIdCookie(struct cookieList *recordListPtr);
 char *createCookieString(int id);
 char *setPageImageSrc(struct test *imageTestPtr, char *data);
 char *getKeyword(char *data);
 METHOD getMethod(char **buffPtr);
 
-
+/* represent the server */
 void runServer(char *mainProgram, char *ip, char *port) {
     struct cookieList *recordListPtr = createRecordList();
     struct test *imageTestPtr = createTest();
@@ -121,7 +131,8 @@ void runServer(char *mainProgram, char *ip, char *port) {
                 if (i == sockfd) {
                     struct sockaddr_in cliaddr;
                     socklen_t clilen = sizeof(cliaddr);
-                    int newsockfd = accept(sockfd, (struct sockaddr *)&cliaddr, &clilen);
+                    int newsockfd = accept(sockfd, (struct sockaddr *)&cliaddr, 
+                        &clilen);
                     if (newsockfd < 0)
                         perror("accept");
                     else {
@@ -135,7 +146,8 @@ void runServer(char *mainProgram, char *ip, char *port) {
                         printf(
                             "new connection from %s on socket %d\n",
                             // convert to human readable string
-                            inet_ntop(cliaddr.sin_family, &cliaddr.sin_addr, ip, INET_ADDRSTRLEN),
+                            inet_ntop(cliaddr.sin_family, &cliaddr.sin_addr, ip,
+                                 INET_ADDRSTRLEN),
                             newsockfd
                         );
                         //sendHtmlPage(i, WELCOME_PAGE);
@@ -150,9 +162,12 @@ void runServer(char *mainProgram, char *ip, char *port) {
         }
     }
     freeRecordList(recordListPtr);
+    freeTest(imageTestPtr);
 }
 
-static bool handle_http_request(int sockfd, struct test *imageTestPtr, struct cookieList *recordListPtr) {
+/* handle received request */
+static bool handle_http_request(int sockfd, struct test *imageTestPtr, 
+    struct cookieList *recordListPtr) {
     // try to read the request
     char buff[2049];
     int n = read(sockfd, buff, 2049);
@@ -169,11 +184,7 @@ static bool handle_http_request(int sockfd, struct test *imageTestPtr, struct co
     buff[n] = 0;
 
     char * curr = buff;
-    /*
-    printf("\n************print received data****************\n");
-    printf("%s", curr);
-    printf("\n************END****************\n\n");
-    */
+
     // parse the method
     METHOD method = getMethod(&curr);
     if (method == UNKNOWN) {
@@ -190,23 +201,27 @@ static bool handle_http_request(int sockfd, struct test *imageTestPtr, struct co
     while (*curr == '.' || *curr == '/') {
         ++curr;
     }
-        
-    // assume the only valid request URI is "/" but it can be modified to accept more files
+    
+    /* response according to the method */
     switch(method) {
         case GET: {
             return getMethodProcess(sockfd, curr, imageTestPtr, recordListPtr);
         }
         case GET_START: {
-            return getStartMethodProcess(sockfd, curr, imageTestPtr, recordListPtr);
+            return getStartMethodProcess(sockfd, curr, imageTestPtr, 
+                recordListPtr);
         }
         case POST_USER: {
-            return postUserMethodProcess(sockfd, curr, imageTestPtr, recordListPtr);
+            return postUserMethodProcess(sockfd, curr, imageTestPtr, 
+                recordListPtr);
         }
         case POST_GUESS: {
-            return postGuessMethodProcess(sockfd, curr, imageTestPtr, recordListPtr);
+            return postGuessMethodProcess(sockfd, curr, imageTestPtr, 
+                recordListPtr);
         }
         case POST_QUIT: {
-            return postQuitMethodProcess(sockfd, curr, imageTestPtr, recordListPtr);
+            return postQuitMethodProcess(sockfd, curr, imageTestPtr, 
+                recordListPtr);
         }
         default: {
             if (write(sockfd, HTTP_404, HTTP_404_LENGTH) < 0) {
@@ -218,6 +233,7 @@ static bool handle_http_request(int sockfd, struct test *imageTestPtr, struct co
     return true;
 }
 
+/* get the method from the received data */
 METHOD getMethod(char **buffPtr) {
     METHOD method = UNKNOWN;
     if (strncmp(*buffPtr, "GET ", 4) == 0) {
@@ -240,56 +256,74 @@ METHOD getMethod(char **buffPtr) {
     return method;
 }
 
-bool getMethodProcess(int sockfd, char *data, struct test *imageTestPtr, struct cookieList *recordListPtr) {
+/* first response when player enters the web */
+bool getMethodProcess(int sockfd, char *data, struct test *imageTestPtr, 
+    struct cookieList *recordListPtr) {
     int playerId = getIdCookie(data);
-    if (playerId == -1)
+    // new user
+    if (playerId == NO_ID_COOKIE)
     {
         return sendInitialPage(sockfd, recordListPtr, imageTestPtr);
     }
+    // old user
     else
     {
         char *username = getUsername(playerId, recordListPtr);
-        printf("\n\nAccording to Cookies username: %s\n\n", username);
         if (username == NULL) {
             return sendPage(sockfd, WELCOME_PAGE, imageTestPtr);
         } else {
-            return sendDynamicPage(sockfd, MAIN_MENU_PAGE, username, 214, imageTestPtr);
+            return sendDynamicPage(sockfd, MAIN_MENU_PAGE, username, 
+                MAIN_MENU_PAGE_INSERT, imageTestPtr);
         }    
     }
 }
 
-bool getStartMethodProcess(int sockfd, char *data, struct test *imageTestPtr, struct cookieList *recordListPtr) {
+/* response when start button is pressed */
+bool getStartMethodProcess(int sockfd, char *data, struct test *imageTestPtr, 
+    struct cookieList *recordListPtr) {
     int playerId = getIdCookie(data);
+    // set the test information
     playerEnterGame(playerId, imageTestPtr, recordListPtr);
     return sendPage(sockfd, GAME_PLAYING_PAGE, imageTestPtr);
 }
 
-bool postUserMethodProcess(int sockfd, char *data, struct test *imageTestPtr, struct cookieList *recordListPtr) {
+/* response when player submits a username */
+bool postUserMethodProcess(int sockfd, char *data, struct test *imageTestPtr, 
+    struct cookieList *recordListPtr) {
     int playerId = getIdCookie(data);
     char *username = strstr(data, "user=") + 5;
     setUsername(recordListPtr, playerId, username);
-    //printf("\n\nNow recordListPtr gets a username: %s\n\n", getUsername(playerId, recordListPtr));
     return sendDynamicPage(sockfd, MAIN_MENU_PAGE, username, 214, imageTestPtr);
 }
 
-bool postGuessMethodProcess(int sockfd, char *data, struct test *imageTestPtr, struct cookieList *recordListPtr) {
+/* response when player submit a guess keyword */
+bool postGuessMethodProcess(int sockfd, char *data, struct test *imageTestPtr, 
+    struct cookieList *recordListPtr) {
     int playerId = getIdCookie(data);
+    // test already finished
     if (isTestFinished(imageTestPtr) == true) {
         playerFinishGame(playerId, imageTestPtr, recordListPtr);
         return sendPage(sockfd, GAME_COMPLETED_PAGE, imageTestPtr);
-    } if(isPlayerInGame(playerId, imageTestPtr) == false) {
+    } 
+    // the other player already pass the test
+    else if(isPlayerInGame(playerId, imageTestPtr) == false) {
         freePlayerkeywordList(playerId, recordListPtr);
         return sendPage(sockfd, GAME_COMPLETED_PAGE, imageTestPtr);
-    }else if (bothPlayerInGame(imageTestPtr) == false) {
+    }
+    // wait the other player
+    else if (bothPlayerInGame(imageTestPtr) == false) {
         return sendPage(sockfd, KEYWORD_DISCARDED_PAGE, imageTestPtr);
     } else {
         char *keyword = getKeyword(data);
-        if (checkRivalKeywordList(playerId, keyword, imageTestPtr, recordListPtr) == true) {
+        // the same keyword with the other player, pass the test
+        if (checkRivalKeywordList(playerId, keyword, imageTestPtr, 
+            recordListPtr) == true) {
             testFinish(imageTestPtr);
             //free(keyword);
             playerFinishGame(playerId, imageTestPtr, recordListPtr);
             return sendPage(sockfd, GAME_COMPLETED_PAGE, imageTestPtr);
         }
+        // submit the keyword and update the web content
         else
         {
             addPlayerKeyword(keyword, playerId, recordListPtr);
@@ -298,7 +332,9 @@ bool postGuessMethodProcess(int sockfd, char *data, struct test *imageTestPtr, s
     }
 }
 
-bool postQuitMethodProcess(int sockfd, char *data, struct test *imageTestPtr, struct cookieList *recordListPtr) {
+/* response when the quit button is pressed */
+bool postQuitMethodProcess(int sockfd, char *data, struct test *imageTestPtr, 
+    struct cookieList *recordListPtr) {
     int playerId = getIdCookie(data);
     playerLeaveGame(playerId, imageTestPtr, recordListPtr);
     return sendPage(sockfd, GAME_OVER_PAGE, imageTestPtr);
@@ -315,6 +351,7 @@ int getIdCookie(char *data) {
     return atoi(idString);
 }
 
+/* send the stable webpage, the picture is assigned by imageTestPtr */
 bool sendPage(int sockfd, char *page, struct test *imageTestPtr) {
     struct stat st;
     int n;
@@ -349,7 +386,10 @@ bool sendPage(int sockfd, char *page, struct test *imageTestPtr) {
     return true;
 }
 
-bool sendInitialPage(int sockfd, struct cookieList *recordListPtr, struct test *imageTestPtr) {
+/* send the  WELCOME_PAGE and Cookie , the picture is assigned by imageTestPtr 
+ */
+bool sendInitialPage(int sockfd, struct cookieList *recordListPtr, 
+    struct test *imageTestPtr) {
     struct stat st;
     int n;
     char buff[2049];
@@ -387,24 +427,24 @@ bool sendInitialPage(int sockfd, struct cookieList *recordListPtr, struct test *
     return true;
 }
 
-bool sendDynamicPage(int sockfd, char *page, char *newContent, int before, struct test *imageTestPtr) {
+/* send the web with changed content , the picture is assigned by imageTestPtr 
+ */
+bool sendDynamicPage(int sockfd, char *page, char *newContent, int before, 
+    struct test *imageTestPtr) {
     char formatStart[] = "<h3>"; 
     char formatEnd[] = "</h3>";
-    int sizeWithFormat = strlen(formatStart) + strlen(formatEnd) + strlen(newContent) + 1;
+    int sizeWithFormat = strlen(formatStart) + strlen(formatEnd) + 
+        strlen(newContent) + 1;
     char *newContentWithFormat = (char *)calloc(sizeWithFormat, sizeof(char));
     strcat(newContentWithFormat, formatStart);
     strcat(newContentWithFormat, newContent);
     strcat(newContentWithFormat, formatEnd);
-    //printf("test the newContentWithFormat:\n%s\n\nEND\n\n", newContentWithFormat);
-    //printf("\n");
     int length = strlen(newContentWithFormat);
     int n;
     // get the size of the file
     struct stat st;
     char buff[2049];
     stat(page, &st);
-    // increase file size to accommodate the username
-    //long size = st.st_size + length;
     long size = st.st_size + length;
     n = sprintf(buff, HTTP_200_FORMAT, size);
     // send the header first
@@ -447,21 +487,29 @@ bool sendDynamicPage(int sockfd, char *page, char *newContent, int before, struc
     return true;
 }
 
-bool sendAcceptedPage(int playerId, struct cookieList *recordListPtr, int sockfd, struct test *imageTestPtr) {
+/* send the  KEYWORD_ACCEPTED_PAGE and keyword list , the picture is assigned by
+ * imageTestPtr 
+ */
+bool sendAcceptedPage(int playerId, struct cookieList *recordListPtr, 
+    int sockfd, struct test *imageTestPtr) {
 	char *keywordsString = getAllKeywords(playerId, recordListPtr);
     //printf("\n\nThe keywordList = %s\n\n", keywordsString);
-	return sendDynamicPage(sockfd, KEYWORD_ACCEPTED_PAGE, keywordsString, 264, imageTestPtr);
+	return sendDynamicPage(sockfd, KEYWORD_ACCEPTED_PAGE, keywordsString, 
+        KEYWORD_ACCEPTED_PAGE_INSERT, imageTestPtr);
 }
 
+/* return a header with cookie */
 char *createHeaderwithNewIdCookie(struct cookieList *recordListPtr) {
 	int newId = newPlayerRecord(recordListPtr);
     char *cookieString = createCookieString(newId);
-    char *header = (char *)malloc(sizeof(char) * (strlen(HTTP_200_FORMAT_NEED_COOKIE) + strlen(cookieString) + 1));
+    char *header = (char *)malloc(sizeof(char) * 
+        (strlen(HTTP_200_FORMAT_NEED_COOKIE) + strlen(cookieString) + 1));
     strcat(header, HTTP_200_FORMAT_NEED_COOKIE);
     strcat(header, cookieString);
     return header;
 }
 
+/* return the cookie string */
 char *createCookieString(int id) {
     char *cookieString = (char *)calloc(24, sizeof(char));
     strcat(cookieString, "Set-Cookie: id = ");
@@ -472,6 +520,7 @@ char *createCookieString(int id) {
     return cookieString;
 }
 
+/* return the string of assigned picture link */
 char *setPageImageSrc(struct test *imageTestPtr, char *data) {
 	if(strstr(data, IMAGE_SRC_PREFIX) == NULL) {
 		return data;

@@ -10,16 +10,21 @@
 struct test;
 
 struct test *createTest();
-bool playerEnterGame(int playerId, struct test *imageTestPtr, struct cookieList *recordListPtr);
+bool playerEnterGame(int playerId, struct test *imageTestPtr, 
+    struct cookieList *recordListPtr);
 bool isTestFinished(struct test *imageTestPtr);
-void playerFinishGame(int playerId, struct test *imageTestPtr, struct cookieList *recordListPtr);
-void playerLeaveGame(int playerId, struct test *imageTestPtr, struct cookieList *recordListPtr);
+void playerFinishGame(int playerId, struct test *imageTestPtr, 
+    struct cookieList *recordListPtr);
+void playerLeaveGame(int playerId, struct test *imageTestPtr, 
+    struct cookieList *recordListPtr);
 bool checkEnoughPlayers(struct test *imageTestPtr);
 bool playerInTest(int playerId, struct test *imageTestPtr);
 bool isTestEmpty(struct test *imageTestPtr);
 bool bothPlayerInGame(struct test *imageTestPtr);
-bool checkRivalKeywordList(int requestedPlayerId, char *keyword, struct test *imageTestPtr, struct cookieList *recordListPtr);
+bool checkRivalKeywordList(int requestedPlayerId, char *keyword, 
+    struct test *imageTestPtr, struct cookieList *recordListPtr);
 int getRivalPlayerId(int requestedPlayerId, struct test *imageTestPtr);
 void testFinish(struct test *imageTestPtr);
 int getGameRound(struct test *imageTestPtr);
 bool isPlayerInGame(int playerId, struct test *imageTestPtr);
+void freeTest(struct test *imageTestPtr);
