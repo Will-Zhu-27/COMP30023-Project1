@@ -16,6 +16,8 @@ static char const * const HTTP_400 = "HTTP/1.1 400 Bad Request\r\nContent-Length
 static int const HTTP_400_LENGTH = 47;
 static char const * const HTTP_404 = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
 static int const HTTP_404_LENGTH = 45;
+static char const * const IMAGE_SRC_PREFIX = 
+	"https://swift.rc.nectar.org.au/v1/AUTH_eab314456b624071ac5aecd721b977f0/comp30023-project/image-";
 
 #define WELCOME_PAGE "1_intro.html"
 #define MAIN_MENU_PAGE "2_start.html"

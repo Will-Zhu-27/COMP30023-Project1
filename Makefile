@@ -1,11 +1,14 @@
-image_tagger: imageTaggerServer.o playerRecord.o image_tagger.o
-	gcc -Wall imageTaggerServer.o playerRecord.o image_tagger.o -o image_tagger -g
-
-image_tagger.o: imageTaggerServer.h image_tagger.c
+image_tagger: userCookie.o imageTest.o imageTaggerServer.o  image_tagger.o 
+	gcc -Wall userCookie.o imageTest.o imageTaggerServer.o  image_tagger.o -o image_tagger -g
+	
+image_tagger.o: image_tagger.c imageTaggerServer.h
 	gcc -Wall -c image_tagger.c -g
-
-imageTaggerServer.o: imageTaggerServer.h imageTaggerConstant.h playerRecord.h imageTaggerServer.c
+	
+imageTaggerServer.o: imageTaggerServer.h imageTaggerServer.c imageTaggerConstant.h userCookie.h imageTest.h
 	gcc -Wall -c imageTaggerServer.c -g
-
-playerRecord.o: playerRecord.h playerRecord.c
-	gcc -Wall -c playerRecord.c -g
+	
+imageTest.o: imageTest.h imageTest.c userCookie.h
+	gcc -Wall -c imageTest.c -g
+	
+userCookie.o: userCookie.h userCookie.c
+	gcc -Wall -c userCookie.c -g
