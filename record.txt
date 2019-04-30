@@ -7,3 +7,6 @@ gcc -Wall image_tagger.c -o image_tagger -g
 当GET时？
 
 HTTP_200_FORMAT 去掉了最后面的换行。
+
+同一时间只能有两个在连接，否则现在的程序出错。
+
